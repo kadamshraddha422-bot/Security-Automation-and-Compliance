@@ -1,0 +1,100 @@
+#!/bin/bash
+
+# Security Automation and Compliance Project - Single Script
+# By: [Your Name]
+
+echo "🔐 Starting Security Automation & Compliance Setup..."
+
+# ---------- 1. Set up AWS Infrastructure with Terraform ----------
+echo "🛠️ Initializing Terraform and Creating EC2 with Secure SG..."
+
+# Create Terraform files
+cat > main.tf <<EOF
+provider "aws" {
+  region = "us-east-1"
+}
+
+resource "aws_security_group" "secure_sg" {
+  name        = "secure_ssh_only"
+  description = "Allow SSH from trusted IP only"
+
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["YOUR_TRUSTED_IP/32"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+resource "aws_instance" "secure_instance" {
+  ami           = "ami-0c55b159cbfafe1f0"
+  instance_type = "t2.micro"
+  key_name      = "your-keypair"
+  security_groups = [aws_security_group.secure_sg.name]
+
+  tags = {
+    Name = "SecureMLA"
+  }
+}
+EOF
+
+terraform init
+terraform apply -auto-approve
+
+# ---------- 2. Run Security Scan with Trivy ----------
+echo "🔎 Running Trivy Scan on Sample Docker Image..."
+
+# Create Dockerfile
+cat > Dockerfile <<EOF
+FROM nginx:alpine
+RUN apk add --no-cache curl
+EOF
+
+docker build -t mlaportal-app .
+
+# Install Trivy if not present
+if ! command -v trivy &> /dev/null
+then
+    echo "📦 Installing Trivy..."
+    wget https://github.com/aquasecurity/trivy/releases/latest/download/trivy_0.48.0_Linux-64bit.deb
+    sudo dpkg -i trivy_0.48.0_Linux-64bit.deb
+fi
+
+trivy image --severity HIGH,CRITICAL mlaportal-app
+
+# ---------- 3. Enable AWS Config Rule for Compliance ----------
+echo "✅ Enabling AWS Config Rule to check S3 Encryption..."
+
+aws configservice put-configuration-recorder \
+  --configuration-recorder name=default \
+  --role-arn arn:aws:iam::ACCOUNT_ID:role/aws-service-role/config.amazonaws.com/AWSServiceRoleForConfig \
+  --recording-group allSupported=true,includeGlobalResourceTypes=true
+
+aws configservice start-configuration-recorder --configuration-recorder-name default
+
+cat > s3-encryption-rule.json <<EOF
+{
+  "ConfigRuleName": "s3-bucket-server-side-encryption-enabled",
+  "Description": "Checks whether S3 buckets have encryption enabled.",
+  "Source": {
+    "Owner": "AWS",
+    "SourceIdentifier": "S3_BUCKET_SERVER_SIDE_ENCRYPTION_ENABLED"
+  },
+  "Scope": {
+    "ComplianceResourceTypes": [
+      "AWS::S3::Bucket"
+    ]
+  }
+}
+EOF
+
+aws configservice put-config-rule --config-rule file://s3-encryption-rule.json
+
+echo "🎉 Security Automation and Compliance Setup Complete!"
