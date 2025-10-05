@@ -79,7 +79,9 @@ This project aims to design and implement an **automated security and compliance
 * **Phase 4:** Develop automated remediation scripts and incident response workflows.
 * **Phase 5:** Build monitoring dashboards and reporting mechanisms.
 * **Phase 6:** Test end-to-end workflows, perform audits, and iterate based on feedback.
+  
 ![](/img/scurity%206.jpeg)
 
 ## 7. Conclusion
+
 This project delivers a robust, automated security and compliance framework that aligns with modern cloud and DevOps practices. It not only secures infrastructure but also ensures governance and regulatory compliance, enabling organizations to innovate rapidly without compromising security.
